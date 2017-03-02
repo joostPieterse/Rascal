@@ -10,10 +10,52 @@ import IO;
 import vis::Figure; 
 import vis::Render;
 
+alias OFG = rel[loc from, loc to];
 
 public void main() {
 	m=createM3FromEclipseProject(|project://eLib|);
-	drawDiagram(m);
+	drawDiagram(m);	
+	FlowProgram p = createOFG(|project://eLib|);
+	methods(m);
+	rel[loc from, loc to] relations = buildGraph(p);
+}
+public void propTest(){
+	m=createM3FromEclipseProject(|project://eLib|);
+	FlowProgram p = createOFG(|project://eLib|);
+	rel[loc from, loc to] relations = buildGraph(p);
+	rel[loc from, loc to] result = prop(relations, relations, relations, false);	
+}
+
+/*from https://github.com/usethesource/rascal/blob/master/src/org/rascalmpl/library/analysis/flow/ObjectFlow.rsc*/
+OFG buildFlowGraph(FlowProgram p)
+  = { <as[i], fps[i]> | newAssign(x, cl, c, as) <- p.statements, constructor(c, fps) <- p.decls, i <- index(as) }
+  + { <cl + "this", x> | newAssign(x, cl, _, _) <- p.statements }
+  + { <y, x> | assign(x, _, y) <- p.statements}
+  + { <as[i], fps[i]> | call(x, _, y, m, as) <- p.statements, method(m, fps) <- p.decls, i <- index(as) }
+  + { <y, m + "this"> | call(_, _, y, m, _) <- p.statements }
+  + { <m + "return", x> | call(x, _, _, m, _) <- p.statements, x != emptyId}
+  ;
+  
+/*Implementation by Davy Landman and Jurgen Vinju (https://gist.github.com/jurgenvinju/8972255) that we can use*/
+OFG buildGraph(FlowProgram p) 
+  = { <as[i], fps[i]> | newAssign(x, cl, c, as) <- p.statements, constructor(c, fps) <- p.decls, i <- index(as) }
+  + { <cl + "this", x> | newAssign(x, cl, _, _) <- p.statements }
+  /* + ... etc */ 
+  ;
+  
+OFG prop(OFG g, rel[loc,loc] gen, rel[loc,loc] kill, bool back) {
+  OFG IN = { };
+  OFG OUT = gen + (IN - kill);
+  gi = g<to,from>;
+  set[loc] pred(loc n) = gi[n];
+  set[loc] succ(loc n) = g[n];
+  
+  solve (IN, OUT) {
+    IN = { <n,\o> | n <- carrier(g), p <- (back ? pred(n) : succ(n)), \o <- OUT[p] };
+    OUT = gen + (IN - kill);
+  }
+  
+  return OUT;
 }
 
 public void drawDiagram(M3 m) {
@@ -21,4 +63,26 @@ public void drawDiagram(M3 m) {
   edges = [edge("<to>", "<from>") | <from,to> <- m@extends ];  
   
   render(scrollable(graph(classFigures, edges, hint("layered"), std(gap(10)), std(font("Bitstream Vera Sans")), std(fontSize(20)))));
+}
+ 
+public str dotDiagram(M3 m) {
+  return "digraph classes {
+         '  fontname = \"Bitstream Vera Sans\"
+         '  fontsize = 8
+         '  node [ fontname = \"Bitstream Vera Sans\" fontsize = 8 shape = \"record\" ]
+         '  edge [ fontname = \"Bitstream Vera Sans\" fontsize = 8 ]
+         '
+         '  <for (cl <- classes(m)) { /* a for loop in a string template, just like PHP */>
+         ' \"N<cl>\" [label=\"{<cl.path[1..] /* a Rascal expression between < > brackets is spliced into the string */>||}\"]
+         '  <} /* this is the end of the for loop */>
+         '
+         '  <for (<from, to> <- m@extends) {>
+         '  \"N<to>\" -\> \"N<from>\" [arrowhead=\"empty\"]<}>
+         '}";
+}
+ 
+public void showDot(M3 m) = showDot(m, |home:///<m.id.authority>.dot|);
+ 
+public void showDot(M3 m, loc out) {
+  writeFile(out, dotDiagram(m));
 }
