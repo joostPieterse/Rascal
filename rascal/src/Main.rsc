@@ -2,6 +2,7 @@ module Main
 import analysis::flow::ObjectFlow;
 import lang::java::flow::JavaToObjectFlow;
 import List;
+import Set;
 import Relation;
 import lang::java::m3::Core;
 import lang::java::jdt::m3::Core;
@@ -30,6 +31,29 @@ public OFG propTest(m,p){
 		|java+interface:///java/util/Map|,|java+class:///java/util/HashMap|};
 	OFG relevantPart = {<a,b>|<a,b><-result,<a,c><-m@typeDependency,!/List/:=b.path, /class/:=b.scheme,c in relevantTypes};	
 	return relevantPart;
+}
+
+public set[loc] supers(loc l, M3 m) {
+	p = {l};
+	solve (p) {
+		p = carrier({<sub,super> | <sub, super><-m@extends, sub in p});
+	};
+	return p + l;
+}
+
+public set[&T] intersect(set[set[&T]] sets) {
+	set[&T] intersection = getOneFrom(sets);
+	for (set[&T] s <- sets) intersection &= s;
+	return intersection;
+}
+
+public loc leastSuper(set[loc] ls, M3 m) {
+	set[loc] supers_l(loc l) = supers(l, m);
+	
+	set[set[loc]] allSupersets = mapper(ls, supers_l);
+	set[loc] allSuper = intersect(allSupersets);
+	loc maxSuper = ( getOneFrom(allSuper) | size(supers_l(pl)) > size(supers_l(it)) ? pl : it | loc pl <- allSuper );
+	return maxSuper;
 }
 
 /*from https://github.com/usethesource/rascal/blob/master/src/org/rascalmpl/library/analysis/flow/ObjectFlow.rsc*/
