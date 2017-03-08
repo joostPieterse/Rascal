@@ -29,7 +29,7 @@ public map[loc,loc] propTest(m,p){
 		{<ty,ui>|newAssign(ty,ui,_,_)<-p.statements}+
 		{ <c,d> | <c,d> <- m@typeDependency,/(variable|field)/:=c.scheme },{},true);
 	relevantTypes = {|java+interface:///java/util/List|,|java+class:///java/util/LinkedList|,|java+interface:///java/util/Collection|,
-		|java+interface:///java/util/Map|,|java+class:///java/util/HashMap|};
+		|java+interface:///java/util/Map|,|java+class:///java/util/HashMap|,|java+class:///java/util/ArrayList|};
 	OFG relevantPart = {<a,b>|<a,b><-result,<a,c><-m@typeDependency,!/List/:=b.path, /class/:=b.scheme,c in relevantTypes};	
 	map[loc, set[loc]] relevantMap = index(relevantPart);
   	map[loc,loc] locMap = (a:leastSuper(relevantMap[a],m)|a<-relevantMap);
@@ -41,7 +41,7 @@ public set[loc] supers(loc l, M3 m) {
 	solve (p) {
 		p = carrier({<sub,super> | <sub, super><-m@extends, sub in p});
 	};
-	return p + l;
+	return p + l+|java+class:///java/lang/Object|;
 }
 
 public set[&T] intersect(set[set[&T]] sets) {
