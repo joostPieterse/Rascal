@@ -2,6 +2,7 @@ module Main
 import analysis::flow::ObjectFlow;
 import lang::java::flow::JavaToObjectFlow;
 import List;
+import Set;
 import Relation;
 import lang::java::m3::Core;
 import lang::java::jdt::m3::Core;
@@ -12,18 +13,47 @@ import vis::Render;
 
 alias OFG = rel[loc from, loc to];
 
+
 public void main() {
 	m=createM3FromEclipseProject(|project://eLib|);
 	drawDiagram(m);	
 	FlowProgram p = createOFG(|project://eLib|);
 	methods(m);
 	rel[loc from, loc to] relations = buildGraph(p);
+	propTest(m,p);
 }
-public void propTest(){
-	m=createM3FromEclipseProject(|project://eLib|);
-	FlowProgram p = createOFG(|project://eLib|);
-	rel[loc from, loc to] relations = buildGraph(p);
-	rel[loc from, loc to] result = prop(relations, relations, relations, false);	
+
+public map[loc,loc] propTest(m,p){
+	OFG g = buildFlowGraph(p);
+	OFG result = prop(g,{ <r,q> | call(r,q,_,_,_) <- p.statements }+
+		{<ty,ui>|newAssign(ty,ui,_,_)<-p.statements}+
+		{ <c,d> | <c,d> <- m@typeDependency,/(variable|field)/:=c.scheme },{},true);
+	relevantTypes = {|java+interface:///java/util/List|,|java+class:///java/util/LinkedList|,|java+interface:///java/util/Collection|,
+		|java+interface:///java/util/Map|,|java+class:///java/util/HashMap|};
+	OFG relevantPart = {<a,b>|<a,b><-result,<a,c><-m@typeDependency,!/List/:=b.path, /class/:=b.scheme,c in relevantTypes};	
+	map[loc, set[loc]] relevantMap = index(relevantPart);
+  	map[loc,loc] locMap = (a:leastSuper(relevantMap[a],m)|a<-relevantMap);
+	return locMap;
+}
+
+public set[loc] supers(loc l, M3 m) {
+	p = {l};
+	solve (p) {
+		p = carrier({<sub,super> | <sub, super><-m@extends, sub in p});
+	};
+	return p + l;
+}
+
+public set[&T] intersect(set[set[&T]] sets) {
+	set[&T] intersection = getOneFrom(sets);
+	for (set[&T] s <- sets) intersection &= s;
+	return intersection;
+}
+
+public loc leastSuper(set[loc] ls, M3 m) {
+	set[loc] supers_l(loc l) = supers(l, m);
+	set[loc] allSuper = intersect(mapper(ls, supers_l));
+	return ( getOneFrom(allSuper) | size(supers_l(pl)) > size(supers_l(it)) ? pl : it | loc pl <- allSuper );
 }
 
 /*from https://github.com/usethesource/rascal/blob/master/src/org/rascalmpl/library/analysis/flow/ObjectFlow.rsc*/
@@ -56,6 +86,21 @@ OFG prop(OFG g, rel[loc,loc] gen, rel[loc,loc] kill, bool back) {
   }
   
   return OUT;
+}
+
+rel[&G, &T] propagate(rel[&G, &T] g, rel[&G, &T] gen, rel[&G, &T] kill, bool back) {
+	rel[&G, &T] IN = {};
+	rel[&G, &T] OUT = gen + (IN - kill);
+	if (back) {
+		g = g<1,0>;
+	}
+	
+	solve (IN, OUT) {
+		IN = g o OUT;
+		OUT = gen + (IN - kill);
+	}
+	
+	return OUT;
 }
 
 public void drawDiagram(M3 m) {
