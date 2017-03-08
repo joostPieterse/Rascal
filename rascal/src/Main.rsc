@@ -12,6 +12,7 @@ import vis::Render;
 
 alias OFG = rel[loc from, loc to];
 
+
 public void main() {
 	m=createM3FromEclipseProject(|project://eLib|);
 	drawDiagram(m);	
@@ -19,11 +20,16 @@ public void main() {
 	methods(m);
 	rel[loc from, loc to] relations = buildGraph(p);
 }
-public void propTest(){
-	m=createM3FromEclipseProject(|project://eLib|);
-	FlowProgram p = createOFG(|project://eLib|);
-	rel[loc from, loc to] relations = buildGraph(p);
-	rel[loc from, loc to] result = prop(relations, relations, relations, false);	
+
+public OFG propTest(m,p){
+	OFG g = buildFlowGraph(p);
+	OFG result = prop(g,{ <r,q> | call(r,q,_,_,_) <- p.statements }+
+		{<ty,ui>|newAssign(ty,ui,_,_)<-p.statements}+
+		{ <c,d> | <c,d> <- m@typeDependency,/(variable|field)/:=c.scheme },{},true);
+	relevantTypes = {|java+interface:///java/util/List|,|java+class:///java/util/LinkedList|,|java+interface:///java/util/Collection|,
+		|java+interface:///java/util/Map|,|java+class:///java/util/HashMap|};
+	OFG relevantPart = {<a,b>|<a,b><-result,<a,c><-m@typeDependency,!/List/:=b.path, /class/:=b.scheme,c in relevantTypes};	
+	return relevantPart;
 }
 
 /*from https://github.com/usethesource/rascal/blob/master/src/org/rascalmpl/library/analysis/flow/ObjectFlow.rsc*/
@@ -56,6 +62,21 @@ OFG prop(OFG g, rel[loc,loc] gen, rel[loc,loc] kill, bool back) {
   }
   
   return OUT;
+}
+
+rel[&G, &T] propagate(rel[&G, &T] g, rel[&G, &T] gen, rel[&G, &T] kill, bool back) {
+	rel[&G, &T] IN = {};
+	rel[&G, &T] OUT = gen + (IN - kill);
+	if (back) {
+		g = g<1,0>;
+	}
+	
+	solve (IN, OUT) {
+		IN = g o OUT;
+		OUT = gen + (IN - kill);
+	}
+	
+	return OUT;
 }
 
 public void drawDiagram(M3 m) {
