@@ -20,9 +20,10 @@ public void main() {
 	FlowProgram p = createOFG(|project://eLib|);
 	methods(m);
 	rel[loc from, loc to] relations = buildGraph(p);
+	propTest(m,p);
 }
 
-public OFG propTest(m,p){
+public map[loc,loc] propTest(m,p){
 	OFG g = buildFlowGraph(p);
 	OFG result = prop(g,{ <r,q> | call(r,q,_,_,_) <- p.statements }+
 		{<ty,ui>|newAssign(ty,ui,_,_)<-p.statements}+
@@ -30,7 +31,9 @@ public OFG propTest(m,p){
 	relevantTypes = {|java+interface:///java/util/List|,|java+class:///java/util/LinkedList|,|java+interface:///java/util/Collection|,
 		|java+interface:///java/util/Map|,|java+class:///java/util/HashMap|};
 	OFG relevantPart = {<a,b>|<a,b><-result,<a,c><-m@typeDependency,!/List/:=b.path, /class/:=b.scheme,c in relevantTypes};	
-	return relevantPart;
+	map[loc, set[loc]] relevantMap = index(relevantPart);
+  	map[loc,loc] locMap = (a:leastSuper(relevantMap[a],m)|a<-relevantMap);
+	return locMap;
 }
 
 public set[loc] supers(loc l, M3 m) {
@@ -49,11 +52,8 @@ public set[&T] intersect(set[set[&T]] sets) {
 
 public loc leastSuper(set[loc] ls, M3 m) {
 	set[loc] supers_l(loc l) = supers(l, m);
-	
-	set[set[loc]] allSupersets = mapper(ls, supers_l);
-	set[loc] allSuper = intersect(allSupersets);
-	loc maxSuper = ( getOneFrom(allSuper) | size(supers_l(pl)) > size(supers_l(it)) ? pl : it | loc pl <- allSuper );
-	return maxSuper;
+	set[loc] allSuper = intersect(mapper(ls, supers_l));
+	return ( getOneFrom(allSuper) | size(supers_l(pl)) > size(supers_l(it)) ? pl : it | loc pl <- allSuper );
 }
 
 /*from https://github.com/usethesource/rascal/blob/master/src/org/rascalmpl/library/analysis/flow/ObjectFlow.rsc*/
