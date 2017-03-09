@@ -9,6 +9,8 @@ import lang::java::jdt::m3::Core;
 
 import IO;
 
+import DateTime;
+
 alias OFG = rel[loc from, loc to];
 
 
@@ -18,6 +20,12 @@ public map[loc,loc] saveResult(loc projectLocation) {
 	map[loc,loc] suggestions = getSuggestions(m,p);
 	writeFile(|project://rascal/output/result.txt|,suggestions);
 	return suggestions;
+}
+
+public Duration getDuration(loc projectLocation) {
+	datetime startTime=now();
+	saveResult(projectLocation);
+	return now()-startTime;
 }
 
 public map[loc,loc] getSuggestions(m,p){
