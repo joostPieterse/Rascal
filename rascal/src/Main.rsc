@@ -12,9 +12,9 @@ import IO;
 alias OFG = rel[loc from, loc to];
 
 
-public void saveResult() {
-	m=createM3FromEclipseProject(|project://eLib|);
-	FlowProgram p = createOFG(|project://eLib|);
+public void saveResult(loc projectLocation) {
+	m=createM3FromEclipseProject(projectLocation);
+	FlowProgram p = createOFG(projectLocation);
 	map[loc,loc] suggestions = getSuggestions(m,p);
 	writeFile(|project://rascal/output/result.txt|,suggestions);
 }
